@@ -9,7 +9,10 @@ import formatter.FormattingRules;
 import interpreter.PrintScriptLinter;
 import lexer.LexerConfigurations;
 import lexer.StreamLexer;
+import linter.config.IdentifierFormat;
 import linter.config.LintConfig;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 import parser.ConfigurableParser;
 import parser.grammar.GrammarConfigurations;
 import result.CompilerError;
@@ -84,10 +87,7 @@ public class CustomImplementationFactory implements PrintScriptFactory {
                 Program program = loadProgram(src, psVersion, handler);
                 if (program == null) return;
 
-                // Igual que el formatter: si podés cargar LintConfig desde el InputStream, mejor.
-                // Por ahora usamos el default:
-                LintConfig lintConfig = new LintConfig();
-                // TODO: parsear el config del TCK si hace falta
+                LintConfig lintConfig = parseLintConfig(config);
 
                 var notifications = new linter.PrintScriptLinter(lintConfig).lint(program);
                 for (var n : notifications) {
@@ -102,6 +102,24 @@ public class CustomImplementationFactory implements PrintScriptFactory {
                 handler.reportError(e.getMessage() != null ? e.getMessage() : e.toString());
             }
         };
+    }
+
+    /** Parsea el config.json (kebab-case) del TCK a LintConfig */
+    private LintConfig parseLintConfig(InputStream config) {
+        JSONObject json = new JSONObject(new JSONTokener(new InputStreamReader(config, StandardCharsets.UTF_8)));
+
+        IdentifierFormat identifierFormat = IdentifierFormat.CAMEL_CASE;
+        if (json.has("identifier_format")) {
+            String value = json.getString("identifier_format");
+            identifierFormat = "snake case".equalsIgnoreCase(value)
+                    ? IdentifierFormat.SNAKE_CASE
+                    : IdentifierFormat.CAMEL_CASE;
+        }
+
+        boolean printlnArgumentCheck = json.optBoolean("mandatory-variable-or-literal-in-println", false);
+        boolean readInputArgumentCheck = json.optBoolean("mandatory-variable-or-literal-in-readInput", false);
+
+        return new LintConfig(identifierFormat, printlnArgumentCheck, readInputArgumentCheck);
     }
 
     /** Replica la lógica de tu loadProgram del CLI */
