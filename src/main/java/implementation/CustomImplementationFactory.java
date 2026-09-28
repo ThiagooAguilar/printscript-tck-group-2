@@ -95,10 +95,17 @@ public class CustomImplementationFactory implements PrintScriptFactory {
                 Program program = loadProgram(src, psVersion, handler);
                 if (program == null) return;
 
-                LintConfig lintConfig = parseLintConfig(config);
+                JSONObject json = new JSONObject(new JSONTokener(new InputStreamReader(config, StandardCharsets.UTF_8)));
+                LintConfig lintConfig = parseLintConfig(json);
+                // PrintScriptLinter.buildRules() agrega identifier-format sin importar la config,
+                // asi que filtramos esas notificaciones si el config no la pidio explicitamente.
+                boolean identifierFormatRequested = json.has("identifier_format");
 
                 var notifications = new linter.PrintScriptLinter(lintConfig).lint(program);
                 for (var n : notifications) {
+                    if (!identifierFormatRequested && "identifier-format".equals(n.getRule())) {
+                        continue;
+                    }
                     handler.reportError(
                             n.getSeverity() + ": " +
                                     n.getPosition().getLine() + ":" + n.getPosition().getColumn() + " - " +
@@ -160,9 +167,7 @@ public class CustomImplementationFactory implements PrintScriptFactory {
     }
 
     /** Parsea el config.json (kebab-case) del TCK a LintConfig */
-    private LintConfig parseLintConfig(InputStream config) {
-        JSONObject json = new JSONObject(new JSONTokener(new InputStreamReader(config, StandardCharsets.UTF_8)));
-
+    private LintConfig parseLintConfig(JSONObject json) {
         IdentifierFormat identifierFormat = IdentifierFormat.CAMEL_CASE;
         if (json.has("identifier_format")) {
             String value = json.getString("identifier_format");
