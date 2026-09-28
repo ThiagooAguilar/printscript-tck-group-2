@@ -140,10 +140,23 @@ public class CustomImplementationFactory implements PrintScriptFactory {
             newlinesBeforePrintln = json.getInt("line-breaks-after-println");
         }
 
+        Integer indentationSpaces = null;
+        if (json.has("indent-inside-if")) {
+            indentationSpaces = json.getInt("indent-inside-if");
+        }
+
         Boolean spaceAroundPrintParens = forceSingleSpace ? Boolean.TRUE : null;
 
+        Boolean ifBraceOnNewLine = null;
+        if (json.optBoolean("if-brace-below-line", false)) {
+            ifBraceOnNewLine = Boolean.TRUE;
+        } else if (json.optBoolean("if-brace-same-line", false)) {
+            ifBraceOnNewLine = Boolean.FALSE;
+        }
+
         return new FormattingRules(
-                spaceBeforeColon, spaceAfterColon, spaceAroundEqual, newlinesBeforePrintln, null, spaceAroundPrintParens);
+                spaceBeforeColon, spaceAfterColon, spaceAroundEqual, newlinesBeforePrintln,
+                indentationSpaces, spaceAroundPrintParens, ifBraceOnNewLine);
     }
 
     /** Parsea el config.json (kebab-case) del TCK a LintConfig */
