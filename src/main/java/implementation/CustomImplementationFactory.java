@@ -4,7 +4,6 @@ import interpreter.*;
 
 import ast.PrintScriptVersion;
 import ast.Program;
-import formatter.FormattingConfigLoader;
 import formatter.FormattingRules;
 import interpreter.PrintScriptLinter;
 import lexer.LexerConfigurations;
@@ -59,16 +58,25 @@ public class CustomImplementationFactory implements PrintScriptFactory {
         return (src, version, config, writer) -> {
             try {
                 PrintScriptVersion psVersion = PrintScriptVersion.Companion.fromString(version);
-                Program program = loadProgram(src, psVersion, message -> {}); // o un handler real
-                if (program == null) return;
 
-                // Cargá las reglas de formato desde el config (InputStream)
-                // Si tenés FormattingConfigLoader que lee de InputStream, usalo acá.
-                // Si no, usá el default por ahora:
-                FormattingRules rules = FormattingConfigLoader.INSTANCE.loadDefault();
-                // TODO: si el config del TCK viene con reglas, parsealo y usalo
+                // El formatter ahora necesita los tokens (para preservar espaciado original
+                // cuando una regla viene en null), así que tokenizamos y parseamos acá en vez
+                // de reusar loadProgram (que solo devuelve el Program).
+                Reader reader = new BufferedReader(new InputStreamReader(src, StandardCharsets.UTF_8));
+                var lexerConfig = LexerConfigurations.INSTANCE.getConfiguration(psVersion);
+                var tokenResult = new StreamLexer(reader, lexerConfig).tokenize();
+                if (tokenResult instanceof Result.Failure<?>) return;
+                @SuppressWarnings("unchecked")
+                List<Token> tokens = (List<Token>) ((Result.Success<?>) tokenResult).getValue();
 
-                String formatted = new formatter.PrintScriptFormatter(rules).format(program);
+                var parserConfig = GrammarConfigurations.INSTANCE.getConfiguration(psVersion);
+                var parseResult = new ConfigurableParser(parserConfig).parse(tokens);
+                if (parseResult instanceof Result.Failure<?>) return;
+                Program program = (Program) ((Result.Success<?>) parseResult).getValue();
+
+                FormattingRules rules = parseFormattingRules(config);
+
+                String formatted = new formatter.PrintScriptFormatter(rules).format(tokens, program);
                 writer.write(formatted);
                 writer.flush();
 
@@ -102,6 +110,31 @@ public class CustomImplementationFactory implements PrintScriptFactory {
                 handler.reportError(e.getMessage() != null ? e.getMessage() : e.toString());
             }
         };
+    }
+
+    /** Parsea el config.json (kebab-case) del TCK a FormattingRules */
+    private FormattingRules parseFormattingRules(InputStream config) {
+        JSONObject json = new JSONObject(new JSONTokener(new InputStreamReader(config, StandardCharsets.UTF_8)));
+
+        Boolean spaceBeforeColon = json.has("enforce-spacing-before-colon-in-declaration")
+                ? json.getBoolean("enforce-spacing-before-colon-in-declaration")
+                : null;
+        Boolean spaceAfterColon = json.has("enforce-spacing-after-colon-in-declaration")
+                ? json.getBoolean("enforce-spacing-after-colon-in-declaration")
+                : null;
+
+        Boolean spaceAroundEqual = null;
+        if (json.optBoolean("enforce-spacing-around-equals", false)) {
+            spaceAroundEqual = true;
+        } else if (json.optBoolean("enforce-no-spacing-around-equals", false)) {
+            spaceAroundEqual = false;
+        }
+
+        Integer newlinesBeforePrintln = json.has("line-breaks-after-println")
+                ? json.getInt("line-breaks-after-println")
+                : null;
+
+        return new FormattingRules(spaceBeforeColon, spaceAfterColon, spaceAroundEqual, newlinesBeforePrintln, null);
     }
 
     /** Parsea el config.json (kebab-case) del TCK a LintConfig */
