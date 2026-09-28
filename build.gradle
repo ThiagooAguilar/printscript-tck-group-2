@@ -28,6 +28,7 @@ dependencies {
     implementation("com.printscript:linter:1.1.0")
     implementation("com.printscript:parser:1.1.0")
     implementation("com.printscript:semantic:1.1.0")
+    implementation("org.json:json:20240303")
 }
 
 dependencies {
