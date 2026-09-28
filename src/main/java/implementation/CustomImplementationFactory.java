@@ -116,25 +116,34 @@ public class CustomImplementationFactory implements PrintScriptFactory {
     private FormattingRules parseFormattingRules(InputStream config) {
         JSONObject json = new JSONObject(new JSONTokener(new InputStreamReader(config, StandardCharsets.UTF_8)));
 
-        Boolean spaceBeforeColon = json.has("enforce-spacing-before-colon-in-declaration")
-                ? json.getBoolean("enforce-spacing-before-colon-in-declaration")
-                : null;
-        Boolean spaceAfterColon = json.has("enforce-spacing-after-colon-in-declaration")
-                ? json.getBoolean("enforce-spacing-after-colon-in-declaration")
-                : null;
+        boolean forceSingleSpace = json.optBoolean("mandatory-single-space-separation", false);
 
-        Boolean spaceAroundEqual = null;
-        if (json.optBoolean("enforce-spacing-around-equals", false)) {
-            spaceAroundEqual = true;
-        } else if (json.optBoolean("enforce-no-spacing-around-equals", false)) {
-            spaceAroundEqual = false;
+        Boolean spaceBeforeColon = forceSingleSpace ? Boolean.TRUE : null;
+        if (json.has("enforce-spacing-before-colon-in-declaration")) {
+            spaceBeforeColon = json.getBoolean("enforce-spacing-before-colon-in-declaration");
         }
 
-        Integer newlinesBeforePrintln = json.has("line-breaks-after-println")
-                ? json.getInt("line-breaks-after-println")
-                : null;
+        Boolean spaceAfterColon = forceSingleSpace ? Boolean.TRUE : null;
+        if (json.has("enforce-spacing-after-colon-in-declaration")) {
+            spaceAfterColon = json.getBoolean("enforce-spacing-after-colon-in-declaration");
+        }
 
-        return new FormattingRules(spaceBeforeColon, spaceAfterColon, spaceAroundEqual, newlinesBeforePrintln, null);
+        Boolean spaceAroundEqual = null;
+        if (json.optBoolean("enforce-spacing-around-equals", false) || forceSingleSpace) {
+            spaceAroundEqual = Boolean.TRUE;
+        } else if (json.optBoolean("enforce-no-spacing-around-equals", false)) {
+            spaceAroundEqual = Boolean.FALSE;
+        }
+
+        Integer newlinesBeforePrintln = null;
+        if (json.has("line-breaks-after-println")) {
+            newlinesBeforePrintln = json.getInt("line-breaks-after-println");
+        }
+
+        Boolean spaceAroundPrintParens = forceSingleSpace ? Boolean.TRUE : null;
+
+        return new FormattingRules(
+                spaceBeforeColon, spaceAfterColon, spaceAroundEqual, newlinesBeforePrintln, null, spaceAroundPrintParens);
     }
 
     /** Parsea el config.json (kebab-case) del TCK a LintConfig */
