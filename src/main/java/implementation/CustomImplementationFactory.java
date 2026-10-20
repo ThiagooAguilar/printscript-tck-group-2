@@ -12,8 +12,10 @@ import linter.config.IdentifierFormat;
 import linter.config.LintConfig;
 import org.json.JSONObject;
 import org.json.JSONTokener;
-import parser.ConfigurableParser;
-import parser.grammar.GrammarConfigurations;
+import parser.StreamParser;
+import parser.streamRules.StreamGrammarConfigurations;
+import pipeline.PipelineResult;
+import pipeline.StreamPipeline;
 import result.CompilerError;
 import result.Result;
 import semantic.SemanticAnalyzer;
@@ -35,19 +37,30 @@ public class CustomImplementationFactory implements PrintScriptFactory {
         return (src, version, emitter, handler, provider) -> {
             try {
                 PrintScriptVersion psVersion = PrintScriptVersion.Companion.fromString(version);
-                Program program = loadProgram(src, psVersion, handler);
-                if (program == null) return;
-
-                // Adaptamos el PrintEmitter del TCK a tu interfaz Output
+                // Adaptamos emitter y provider
                 Output output = emitter::print;
-
-                // Adaptamos el InputProvider del TCK al tuyo
-                interpreter.InputProvider myInputProvider = provider::input;
-
-                var config = InterpreterConfigurations.INSTANCE.getConfiguration(psVersion);
-                new ConfigurableInterpreter(output, config, myInputProvider, new SystemEnvProvider()).run(program);
-
-            } catch (Exception e) {
+                interpreter.ScriptInputProvider myInputProvider = () -> provider.input("");
+                // Instanciamos el Pipeline Streaming nuevo
+                StreamPipeline pipeline = new StreamPipeline(
+                        psVersion,
+                        output,
+                        myInputProvider,
+                        new SystemEnvProvider()
+                );
+                // Le pasamos el Reader directamente (lee bajo demanda, sin cargar el archivo a RAM)
+                Reader reader = new BufferedReader(new InputStreamReader(src, StandardCharsets.UTF_8));
+                PipelineResult result = pipeline.run(reader);
+                // Manejo de errores tipado
+                if (result instanceof PipelineResult.LexicalFailure failure) {
+                    reportError(failure.getError(), handler);
+                } else if (result instanceof PipelineResult.SyntaxFailure failure) {
+                    reportError(failure.getError(), handler);
+                } else if (result instanceof PipelineResult.SemanticFailure failure) {
+                    for (Object err : failure.getErrors()) {
+                        reportError(err, handler);
+                    }
+                }
+            } catch (Throwable e) {
                 handler.reportError(e.getMessage() != null ? e.getMessage() : e.toString());
             }
         };
@@ -58,30 +71,24 @@ public class CustomImplementationFactory implements PrintScriptFactory {
         return (src, version, config, writer) -> {
             try {
                 PrintScriptVersion psVersion = PrintScriptVersion.Companion.fromString(version);
-
-                // El formatter ahora necesita los tokens (para preservar espaciado original
-                // cuando una regla viene en null), así que tokenizamos y parseamos acá en vez
-                // de reusar loadProgram (que solo devuelve el Program).
+                // 1. Lexer (obtenemos los tokens que el formatter necesita para el espaciado)
                 Reader reader = new BufferedReader(new InputStreamReader(src, StandardCharsets.UTF_8));
                 var lexerConfig = LexerConfigurations.INSTANCE.getConfiguration(psVersion);
                 var tokenResult = new StreamLexer(reader, lexerConfig).tokenize();
                 if (tokenResult instanceof Result.Failure<?>) return;
                 @SuppressWarnings("unchecked")
                 List<Token> tokens = (List<Token>) ((Result.Success<?>) tokenResult).getValue();
-
-                var parserConfig = GrammarConfigurations.INSTANCE.getConfiguration(psVersion);
-                var parseResult = new ConfigurableParser(parserConfig).parse(tokens);
+                // 2. Parser nuevo (StreamParser)
+                StreamParser parser = StreamGrammarConfigurations.INSTANCE.getConfiguration(psVersion);
+                var parseResult = parser.parse(tokens);
                 if (parseResult instanceof Result.Failure<?>) return;
                 Program program = (Program) ((Result.Success<?>) parseResult).getValue();
-
+                // 3. Formateo y escritura
                 FormattingRules rules = parseFormattingRules(config);
-
                 String formatted = new formatter.PrintScriptFormatter(rules).format(tokens, program);
                 writer.write(formatted);
                 writer.flush();
-
             } catch (Exception e) {
-                // el formatter del TCK no tiene ErrorHandler, así que solo no escribimos o logueamos
                 e.printStackTrace();
             }
         };
@@ -197,8 +204,9 @@ public class CustomImplementationFactory implements PrintScriptFactory {
 
             var tokens = ((Result.Success<?>) tokenResult).getValue();
 
-            var parserConfig = GrammarConfigurations.INSTANCE.getConfiguration(version);
-            var parseResult = new ConfigurableParser(parserConfig).parse((List<Token>) tokens);
+            StreamParser parser = StreamGrammarConfigurations.INSTANCE.getConfiguration(version);
+// 2. Lo ejecutas directo:
+            var parseResult = parser.parse((List<Token>) tokens);
 
             if (parseResult instanceof Result.Failure<?> failure) {
                 reportError(failure.getError(), handler);
@@ -220,7 +228,7 @@ public class CustomImplementationFactory implements PrintScriptFactory {
 
             return program;
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             handler.reportError(e.getMessage() != null ? e.getMessage() : e.toString());
             return null;
         }
