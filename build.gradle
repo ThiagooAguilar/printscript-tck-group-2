@@ -17,18 +17,18 @@ repositories {
 
 dependencies {
     testImplementation 'junit:junit:4.13.1'
-    implementation("com.printscript:common-ast:1.2.0")
-    implementation("com.printscript:formatter:1.2.0")
-    implementation("com.printscript:cli:1.2.0")
-    implementation("com.printscript:common-lexer-parser:1.2.0")
-    implementation("com.printscript:common-result:1.2.0")
-    implementation("com.printscript:common-runtime:1.2.0")
-    implementation("com.printscript:interpreter:1.2.0")
-    implementation("com.printscript:lexer:1.2.0")
-    implementation("com.printscript:linter:1.2.0")
-    implementation("com.printscript:parser:1.2.0")
-    implementation("com.printscript:semantic:1.2.0")
-    implementation("com.printscript:pipeline:1.2.0")
+    implementation("com.printscript:common-ast:1.2.1")
+    implementation("com.printscript:formatter:1.2.1")
+    implementation("com.printscript:cli:1.2.1")
+    implementation("com.printscript:common-lexer-parser:1.2.1")
+    implementation("com.printscript:common-result:1.2.1")
+    implementation("com.printscript:common-runtime:1.2.1")
+    implementation("com.printscript:interpreter:1.2.1")
+    implementation("com.printscript:lexer:1.2.1")
+    implementation("com.printscript:linter:1.2.1")
+    implementation("com.printscript:parser:1.2.1")
+    implementation("com.printscript:semantic:1.2.1")
+    implementation("com.printscript:pipeline:1.2.1")
     implementation("org.json:json:20240303")
 }
 dependencies {

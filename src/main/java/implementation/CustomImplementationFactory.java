@@ -85,7 +85,10 @@ public class CustomImplementationFactory implements PrintScriptFactory {
                 Program program = (Program) ((Result.Success<?>) parseResult).getValue();
                 // 3. Formateo y escritura
                 FormattingRules rules = parseFormattingRules(config);
-                String formatted = new formatter.PrintScriptFormatter(rules).format(tokens, program);
+                String formatted = new formatter.PrintScriptFormatter(
+                        rules,
+                        formatter.FormatterConfigurations.INSTANCE.getDefault()
+                ).format(tokens, program);
                 writer.write(formatted);
                 writer.flush();
             } catch (Exception e) {
@@ -108,7 +111,10 @@ public class CustomImplementationFactory implements PrintScriptFactory {
                 // asi que filtramos esas notificaciones si el config no la pidio explicitamente.
                 boolean identifierFormatRequested = json.has("identifier_format");
 
-                var notifications = new linter.PrintScriptLinter(lintConfig).lint(program);
+                var notifications = new linter.PrintScriptLinter(
+                        lintConfig,
+                        linter.LinterConfigurations.INSTANCE.getDefault()
+                ).lint(program);
                 for (var n : notifications) {
                     if (!identifierFormatRequested && "identifier-format".equals(n.getRule())) {
                         continue;
